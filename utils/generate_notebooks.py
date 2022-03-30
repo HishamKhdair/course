@@ -28,9 +28,9 @@ def read_and_split_frameworks(fname):
     """
     with open(fname, "r") as f:
         content = f.readlines()
-    
+
     contents = {"pt": [], "tf": []}
-    
+
     differences = False
     current_content = []
     line_idx = 0
@@ -52,9 +52,9 @@ def read_and_split_frameworks(fname):
             current_content.append(line)
 
     if len(current_content) > 0:
-        for key in contents:
-            contents[key].extend(current_content)
-    
+        for value in contents.values():
+            value.extend(current_content)
+
     if differences:
         return {k: "".join(content) for k, content in contents.items()}
     else:
@@ -110,12 +110,20 @@ def convert_to_nb_cell(cell):
 
 
 def nb_cell(source, code=True):
-    if not code:
-        return nbformat.notebooknode.NotebookNode(
+    return (
+        nbformat.notebooknode.NotebookNode(
+            {
+                "cell_type": "code",
+                "metadata": {},
+                "source": source,
+                "execution_count": None,
+                "outputs": [],
+            }
+        )
+        if code
+        else nbformat.notebooknode.NotebookNode(
             {"cell_type": "markdown", "source": source, "metadata": {}}
         )
-    return nbformat.notebooknode.NotebookNode(
-        {"cell_type": "code", "metadata": {}, "source": source, "execution_count": None, "outputs": []}
     )
 
 
@@ -166,12 +174,12 @@ def build_notebook(fname, title, output_dir="."):
             contents.append(section)
             titles.append(f"{title} ({frameworks[key]})")
             fnames.append(f"{stem}_{key}.ipynb")
-    
+
     for title, content, fname in zip(titles, contents, fnames):
         cells = extract_cells(content)
         if len(cells) == 0:
             continue
-        
+
         nb_cells = [
             nb_cell(f"# {title}", code=False),
             nb_cell("Install the Transformers and Datasets libraries to run this notebook.", code=False)
@@ -180,14 +188,19 @@ def build_notebook(fname, title, output_dir="."):
         # Install cell
         installs = ["!pip install datasets transformers[sentencepiece]"]
         if title in sections_with_accelerate:
-            installs.append("!pip install accelerate")
-            installs.append("# To run the training on TPU, you will need to uncomment the followin line:")
-            installs.append("# !pip install cloud-tpu-client==0.10 torch==1.9.0 https://storage.googleapis.com/tpu-pytorch/wheels/torch_xla-1.9-cp37-cp37m-linux_x86_64.whl")
+            installs.extend(
+                (
+                    "!pip install accelerate",
+                    "# To run the training on TPU, you will need to uncomment the followin line:",
+                    "# !pip install cloud-tpu-client==0.10 torch==1.9.0 https://storage.googleapis.com/tpu-pytorch/wheels/torch_xla-1.9-cp37-cp37m-linux_x86_64.whl",
+                )
+            )
+
         if title in sections_with_hf_hub:
             installs.append("!apt install git-lfs")
         if title in sections_with_faiss:
             installs.append("!pip install faiss-gpu")
-        
+
         nb_cells.append(nb_cell("\n".join(installs)))
 
         if title in sections_with_hf_hub:
@@ -211,9 +224,9 @@ def get_titles():
     """
     table = yaml.safe_load(open(os.path.join(PATH_TO_COURSE, "_chapters.yml"), "r"))
     result = {}
+    sections = []
     for entry in table:
         chapter_name = entry["local"]
-        sections = []
         for i, section in enumerate(entry["sections"]):
             if isinstance(section, str):
                 result[os.path.join(chapter_name, f"section{i+1}")] = section
